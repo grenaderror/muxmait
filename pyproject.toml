@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [ project ]
 name = "muxmait"
-version = "0.1.5"
+version = "0.1.6"
 description = "AI-powered shell assistant that uses tmux"
 readme = "README.md"
 authors = [{ name = "Elijah Knaperek", email = "elijahknaperek@gmail.com" }]
