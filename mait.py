@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 try:
-    from openai import OpenAI
     from typing import cast
     import sys
     import os
@@ -108,25 +107,44 @@ def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
         quit()
 
 
-def get_response_openai(prompt: str, system_prompt: str, model: str) -> str:
-    client = OpenAI(
-        api_key=os.getenv(direct_models[model]["api_key"]),
-        base_url=direct_models[model]["base_url"],
-    )
-    completion = client.chat.completions.create(
-        model=model[model.find("/")+1:],
-        messages=[
+def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
+    import requests
+
+    api_key = os.getenv(direct_models[model]["api_key"])
+    base_url = direct_models[model]["base_url"]
+
+    url = base_url.rstrip("/")
+    if not url.endswith("/chat/completions"):
+        url += "/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": model[model.find("/")+1:],
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ],
-        temperature=1.0,
-        stop=["```\n"],
-    )
+        "temperature": 1.0,
+        "stop": ["```\n"]
+    }
+
     try:
-        return str(completion.choices[0].message.content)
-    except (AttributeError, KeyError):
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception as e:
         print("unexpected output")
-        print(completion)
+        try:
+            if 'response' in locals():
+                print(response.json())
+            else:
+                print(e)
+        except:
+            print(e)
         quit()
 
 
@@ -139,7 +157,7 @@ def get_response(prompt: str, system_prompt: str, model: str) -> str:
     if args.debug:
         response = get_response_debug(prompt, system_prompt, model)
     elif model in direct_models:
-        response = get_response_openai(prompt, system_prompt, model)
+        response = get_response_direct(prompt, system_prompt, model)
     else:
         response = get_response_litellm(prompt, system_prompt, model)
     if args.verbose:
@@ -181,7 +199,7 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     if not args.quiet:
         print("\n")
         response = re.sub(r"```.*?\n.*?\n", "", response, flags=re.DOTALL)
-        response = re.sub(rf"{command}", "", response, flags=re.DOTALL)
+        response = re.sub(rf"{re.escape(command)}", "", response, flags=re.DOTALL)
         print(response)
 
     # add command to Shell Prompt
