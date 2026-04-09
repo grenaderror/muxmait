@@ -438,14 +438,16 @@ def main():
 
 model_dict = {
         "nh": "openrouter/nousresearch/hermes-3-llama-3.1-405b:free",
-        "gf": "gemini/gemini-2.5-flash",
-        "gt": "gemini/gemini-2.5-flash-lite-preview-06-17",
-        "gp": "gemini/gemini-2.5-pro-preview-05-06",
-        "cs": "anthropic/claude-3-5-sonnet-latest",
-        "ch": "claude-3-haiku-20240307",
+        "gf": "gemini/gemini-3-flash-preview",
+        "gt": "gemini/gemini-3.1-flash-lite-preview",
+        "gp": "gemini/gemini-3.1-pro-preview",
+        "cs": "anthropic/claude-3-7-sonnet-latest",
+        "ch": "anthropic/claude-3-5-haiku-latest",
         "o4m": "openai/gpt-4o-mini",
         "o4o": "openai/gpt-4o",
-        "xg": "xai/grok-beta",
+        "xg": "xai/grok-2",
+        "g2f": "gemini/gemini-2.5-flash",
+        "g2p": "gemini/gemini-2.5-pro",
         }
 
 # Base URLs for different providers
@@ -458,19 +460,23 @@ base_urls = {
 
 # Model configurations with their respective API keys and base URLs
 direct_models = {
-    "gemini/gemini-2.0-flash-exp": {
+    "gemini/gemini-3-flash-preview": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
-    "gemini/gemini-2.0-flash-thinking-exp": {
+    "gemini/gemini-3.1-pro-preview": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
-    "gemini/gemini-1.5-pro-latest": {
+    "gemini/gemini-3.1-flash-lite-preview": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
-    "gemini/gemini-1.5-flash-latest": {
+    "gemini/gemini-2.5-flash": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
+    "gemini/gemini-2.5-pro": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
@@ -482,7 +488,7 @@ direct_models = {
         "api_key": "OPENAI_API_KEY",
         "base_url": base_urls["openai"]
     },
-    "xai/grok-beta": {
+    "xai/grok-2": {
         "api_key": "XAI_API_KEY",
         "base_url": base_urls["xai"]
     },
@@ -561,7 +567,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "-M", "--model-stackexchange", help="Model to use in order to create google search query for stack exchange content",
-    default="gemini/gemini-1.5-flash-latest"
+    default="gemini/gemini-3-flash-preview"
 )
 
 if __name__ == "__main__":
