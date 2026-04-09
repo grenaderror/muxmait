@@ -466,6 +466,8 @@ model_dict = {
         "xg": "xai/grok-2",
         "g2f": "gemini/gemini-2.5-flash",
         "g2p": "gemini/gemini-2.5-pro",
+        "qw": "openrouter/qwen/qwen3.6-plus",
+        "gm": "gemini/gemma-4-31b-it",
         }
 
 # Base URLs for different providers
@@ -498,6 +500,10 @@ direct_models = {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
+    "gemini/gemma-4-31b-it": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
     "openai/gpt-4o-mini": {
         "api_key": "OPENAI_API_KEY",
         "base_url": base_urls["openai"]
@@ -513,7 +519,11 @@ direct_models = {
     "openrouter/nousresearch/hermes-3-llama-3.1-405b:free": {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
-    }
+    },
+    "openrouter/qwen/qwen3.6-plus": {
+        "api_key": "OPENROUTER_API_KEY",
+        "base_url": base_urls["openrouter"]
+    },
 }
 
 
