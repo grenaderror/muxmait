@@ -91,12 +91,19 @@ def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
     ]
+    if args.thinking_level == "minimal":
+        thinking_params = {"type": "disabled"}
+    else:
+        # For litellm, we'll try to map thinking level if possible, 
+        # or just enable it.
+        thinking_params = {"type": "enabled"}
+
     response = cast(ModelResponse, litellm.completion(
         model=model,
         messages=messages,
         temperature=1,
         stop=["```\n"],
-        thinking={"type": "disabled",}
+        thinking=thinking_params
     ))
 
     try:
@@ -131,6 +138,10 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
         "temperature": 1.0,
         "stop": ["```\n"]
     }
+
+    if "gemini" in model.lower() or "gemini" in base_url.lower():
+        data["reasoning_effort"] = args.thinking_level
+
 
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -596,6 +607,11 @@ parser.add_argument(
 parser.add_argument(
     "-M", "--model-stackexchange", help="Model to use in order to create google search query for stack exchange content",
     default="gemini/gemini-3-flash-preview"
+)
+parser.add_argument(
+    "-T", "--thinking-level", help="Set thinking level for Gemini models. Default is minimal",
+    choices=['minimal', 'low', 'medium', 'high'],
+    default="minimal"
 )
 
 if __name__ == "__main__":
