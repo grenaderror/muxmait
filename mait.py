@@ -560,8 +560,8 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-m", "--model", help=f"Set model. Default is {model_dict["gf"]}. You can also pass a number to select from model list",
-    default=model_dict["gf"]
+    "-m", "--model", help=f"Set model. Default is {model_dict['gm']}. You can also pass a number to select from model list",
+    default=model_dict["gm"]
 )
 parser.add_argument(
     "-q", "--quiet", help="only return command no explanation",
