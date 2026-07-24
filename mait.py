@@ -109,9 +109,7 @@ def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
     try:
         return response['choices'][0]['message']['content']
     except (AttributeError, KeyError):
-        print("unexpected output")
-        print(response)
-        quit()
+        raise RuntimeError(f"LiteLLM model response error: {response}")
 
 
 def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
@@ -147,20 +145,15 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
         data["reasoning_effort"] = args.thinking_level
 
 
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        print("unexpected output")
-        try:
-            if 'response' in locals():
-                print(response.json())
-            else:
-                print(e)
-        except:
-            print(e)
-        quit()
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    res_json = response.json()
+    if "choices" in res_json and len(res_json["choices"]) > 0:
+        return res_json["choices"][0]["message"]["content"]
+    elif "error" in res_json:
+        raise RuntimeError(f"API Error ({res_json['error']})")
+    else:
+        raise RuntimeError(f"Unexpected response structure: {res_json}")
 
 
 def get_response(prompt: str, system_prompt: str, model: str) -> str:
@@ -205,8 +198,40 @@ def extract_command(response: str) -> str:
 
 
 def process_prompt(prompt: str, system_prompt: str, model: str):
+    response = None
+    if args.git:
+        git_fallback_models = [
+            "gemini/gemma-4-31b-it",
+            "gemini/gemma-4-26b-it",
+            "gemini/gemini-3.5-flash-lite-preview",
+            "gemini/gemini-3.1-flash-lite-preview",
+            "openrouter/free"
+        ]
+        models_to_try = list(git_fallback_models)
+        if model not in models_to_try:
+            models_to_try.insert(0, model)
 
-    response = get_response(prompt, system_prompt, model)
+        for m in models_to_try:
+            try:
+                if args.verbose:
+                    print(f"Trying git model: {m}")
+                response = get_response(prompt, system_prompt, m)
+                break
+            except Exception as e:
+                print(f"Model {m} failed/rejected: {e}")
+                print("Switching to next model in fallback list...")
+
+        if response is None:
+            print("All fallback models failed for git operation.")
+            quit()
+    else:
+        try:
+            response = get_response(prompt, system_prompt, model)
+        except Exception as e:
+            print("unexpected output")
+            print(e)
+            quit()
+
     # Extract a command from the response
     command = extract_command(response)
     # Look for the last code block
@@ -402,13 +427,24 @@ def run_muxmait():
     else:
         input_system_prompt = default_system_prompt
 
+    if args.git:
+        args.no_screen = True
+
     # get input from stdin or tmux scrollback
     input_string: str = ""
     if not sys.stdin.isatty():
         input_string += "User input piped in from command:\n"
         input_string += "".join(sys.stdin)
         input_string += "\n"
-    if os.getenv("TMUX") != "":
+    elif args.git:
+        try:
+            diff_out = subprocess.check_output("git diff", shell=True).decode("utf-8")
+            if diff_out.strip():
+                input_string += "Git diff output:\n" + diff_out + "\n"
+        except Exception:
+            pass
+
+    if os.getenv("TMUX") != "" and not args.no_screen:
         input_string += "This is the users terminal:\n"
         ib = subprocess.check_output(
                 f"tmux capture-pane -p -t {args.target} -S -{args.scrollback}",
@@ -442,6 +478,8 @@ def run_muxmait():
     prefix_input = ""
     if len(arg_input) > 0:
         prefix_input = " ".join(arg_input)
+    elif args.git:
+        prefix_input = "Stage changes, write a concise git commit message based on the diff, and push: git add <files>; git commit -m \"...\"; git push"
     if args.file is not None:
         with open(args.file) as f:
             prefix_input += f.read()
@@ -483,6 +521,8 @@ model_dict = {
         "g2p": "gemini/gemini-2.5-pro",
         "qw": "openrouter/qwen/qwen3.6-plus",
         "gm": "gemini/gemma-4-31b-it",
+        "gm26": "gemini/gemma-4-26b-it",
+        "g35fl": "gemini/gemini-3.5-flash-lite-preview",
         "orf": "openrouter/free",
         }
 
@@ -508,6 +548,10 @@ direct_models = {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
+    "gemini/gemini-3.5-flash-lite-preview": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
     "gemini/gemini-2.5-flash": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
@@ -517,6 +561,10 @@ direct_models = {
         "base_url": base_urls["gemini"]
     },
     "gemini/gemma-4-31b-it": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
+    "gemini/gemma-4-26b-it": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
@@ -621,6 +669,14 @@ parser.add_argument(
     "-T", "--thinking-level", help="Set thinking level for Gemini models. Default is minimal",
     choices=['minimal', 'low', 'medium', 'high'],
     default="minimal"
+)
+parser.add_argument(
+    "-g", "--git", help="git commit helper: uses git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push",
+    action="store_true"
+)
+parser.add_argument(
+    "-N", "--no-screen", help="do not capture or read tmux screen scrollback",
+    action="store_true"
 )
 
 if __name__ == "__main__":

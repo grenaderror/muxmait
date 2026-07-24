@@ -53,6 +53,8 @@ mait [options] [input]
 - `--delay SECONDS`: Set delay before auto-execution (default: 2.0 seconds)
 - `-c`, `--add-stackexchange`: Add relevant context from Stack Exchange
 - `-M MODEL`, `--model-stackexchange MODEL`: Specify model for Stack Exchange search query generation (default: gemini/gemini-1.5-flash-latest)
+- `-g`, `--git`: Git commit helper. Captures `git diff` (or accepts piped input), skips tmux screen capture, and prompts for `git add <files>; git commit -m "..."; git push`
+- `-N`, `--no-screen`: Skip reading/capturing tmux screen scrollback
 
 ### Examples
 
