@@ -129,8 +129,12 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
         "Content-Type": "application/json"
     }
 
+    req_model = model[model.find("/")+1:]
+    if model == "openrouter/free" or req_model in ("free", "auto"):
+        req_model = model
+
     data = {
-        "model": model[model.find("/")+1:],
+        "model": req_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -479,6 +483,7 @@ model_dict = {
         "g2p": "gemini/gemini-2.5-pro",
         "qw": "openrouter/qwen/qwen3.6-plus",
         "gm": "gemini/gemma-4-31b-it",
+        "orf": "openrouter/free",
         }
 
 # Base URLs for different providers
@@ -532,6 +537,10 @@ direct_models = {
         "base_url": base_urls["openrouter"]
     },
     "openrouter/qwen/qwen3.6-plus": {
+        "api_key": "OPENROUTER_API_KEY",
+        "base_url": base_urls["openrouter"]
+    },
+    "openrouter/free": {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
