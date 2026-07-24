@@ -15,6 +15,7 @@ except KeyboardInterrupt:
 VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
+DEFAULT_MODEL = "gemini/gemma-4-31b-it"
 
 args: argparse.Namespace
 
@@ -617,8 +618,8 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-m", "--model", help=f"Set model. Default is {model_dict['gm']}. You can also pass a number to select from model list",
-    default=model_dict["gm"]
+    "-m", "--model", help=f"Set model. Default is {DEFAULT_MODEL}. You can also pass a number to select from model list",
+    default=DEFAULT_MODEL
 )
 parser.add_argument(
     "-q", "--quiet", help="only return command no explanation",
