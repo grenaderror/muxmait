@@ -249,8 +249,6 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
 
 
 def put_command(command: str):
-    command = clean_command(command)
-
     if args.log_commands is not None:
         with open(args.log_commands, 'a') as f:
             f.write(command+"\n")
@@ -268,15 +266,19 @@ def put_command(command: str):
                     )
             print("\n")
 
-    # send command to shell prompt
-    subprocess.run(
-            f'tmux send-keys -t {args.target} "{command}"', shell=True
-            )
-    """ tmux send-keys on own pane will put output in front of ps and
-    on prompt this keeps that output from moving the ps. If we are sending
-    remote we do not need to worry about this. """
-    if args.target == default_tmux_target:
-        print("\n")
+    # send command to shell prompt via tmux buffer paste
+    try:
+        subprocess.run(["tmux", "set-buffer", "--", command], check=True)
+        if args.target == default_tmux_target:
+            subprocess.Popen(f'sleep 0.05 && tmux paste-buffer -p -t {args.target}', shell=True)
+        else:
+            subprocess.run(["tmux", "paste-buffer", "-p", "-t", args.target], check=True)
+    except Exception:
+        cleaned = clean_command(command)
+        if args.target == default_tmux_target:
+            subprocess.Popen(f'sleep 0.05 && tmux send-keys -t {args.target} "{cleaned}"', shell=True)
+        else:
+            subprocess.run(f'tmux send-keys -t {args.target} "{cleaned}"', shell=True)
 
     # a delay when using auto so user can hopefully C-c out
     if args.auto:
@@ -430,6 +432,7 @@ def run_muxmait():
 
     if args.git:
         args.no_screen = True
+        args.quiet = True
 
     # get input from stdin or tmux scrollback
     input_string: str = ""
