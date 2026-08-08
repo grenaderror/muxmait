@@ -442,6 +442,12 @@ def run_muxmait():
         input_string += "\n"
     elif args.git:
         try:
+            status_out = subprocess.check_output("git status", shell=True).decode("utf-8")
+            if status_out.strip():
+                input_string += "Git status output:\n" + status_out + "\n"
+        except Exception:
+            pass
+        try:
             diff_out = subprocess.check_output("git diff", shell=True).decode("utf-8")
             if diff_out.strip():
                 input_string += "Git diff output:\n" + diff_out + "\n"
@@ -483,7 +489,7 @@ def run_muxmait():
     if len(arg_input) > 0:
         prefix_input = " ".join(arg_input)
     elif args.git:
-        prefix_input = "Stage changes, write a concise git commit message based on the diff, and push: git add <files>; git commit -m \"...\"; git push"
+        prefix_input = "Stage changes, write a concise git commit message based on the status and diff, and push: git add <files>; git commit -m \"...\"; git push"
     if args.file is not None:
         with open(args.file) as f:
             prefix_input += f.read()
@@ -675,7 +681,7 @@ parser.add_argument(
     default="minimal"
 )
 parser.add_argument(
-    "-g", "--git", help="git commit helper: uses git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push",
+    "-g", "--git", help="git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push",
     action="store_true"
 )
 parser.add_argument(
