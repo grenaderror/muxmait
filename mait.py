@@ -15,7 +15,7 @@ except KeyboardInterrupt:
 VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
-DEFAULT_MODEL = "gemini/gemma-4-31b-it"
+DEFAULT_MODEL = "openrouter/free"
 
 args: argparse.Namespace
 
@@ -202,11 +202,12 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     response = None
     if args.git:
         git_fallback_models = [
-            "gemini/gemma-4-31b-it",
-            "gemini/gemma-4-26b-it",
+            "openrouter/free",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-2.5-flash",
             "gemini/gemini-3.5-flash-lite-preview",
             "gemini/gemini-3.1-flash-lite-preview",
-            "openrouter/free"
+            "gemini/gemma-4-31b-it",
         ]
         models_to_try = list(git_fallback_models)
         if model not in models_to_try:
@@ -528,6 +529,7 @@ model_dict = {
         "o4o": "openai/gpt-4o",
         "xg": "xai/grok-2",
         "g2f": "gemini/gemini-2.5-flash",
+        "g2fl": "gemini/gemini-2.5-flash-lite",
         "g2p": "gemini/gemini-2.5-pro",
         "qw": "openrouter/qwen/qwen3.6-plus",
         "gm": "gemini/gemma-4-31b-it",
@@ -563,6 +565,10 @@ direct_models = {
         "base_url": base_urls["gemini"]
     },
     "gemini/gemini-2.5-flash": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
+    "gemini/gemini-2.5-flash-lite": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
     },
@@ -673,7 +679,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "-M", "--model-stackexchange", help="Model to use in order to create google search query for stack exchange content",
-    default="gemini/gemini-3-flash-preview"
+    default=DEFAULT_MODEL
 )
 parser.add_argument(
     "-T", "--thinking-level", help="Set thinking level for Gemini models. Default is minimal",
