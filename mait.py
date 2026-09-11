@@ -15,7 +15,7 @@ except KeyboardInterrupt:
 VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
-DEFAULT_MODEL = "openrouter/free"
+DEFAULT_MODEL = "gemini/gemini-flash-lite-latest"
 
 args: argparse.Namespace
 
@@ -202,12 +202,12 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     response = None
     if args.git:
         git_fallback_models = [
-            "openrouter/free",
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-2.5-flash",
-            "gemini/gemini-3.5-flash-lite-preview",
+            "gemini/gemini-flash-lite-latest",
+            "gemini/gemini-3.5-flash-lite",
+            "gemini/gemini-3.8-flash",
+            "gemini/gemini-3-flash-preview",
             "gemini/gemini-3.1-flash-lite-preview",
-            "gemini/gemma-4-31b-it",
+            "openrouter/free",
         ]
         models_to_try = list(git_fallback_models)
         if model not in models_to_try:
@@ -533,8 +533,9 @@ model_dict = {
         "g2p": "gemini/gemini-2.5-pro",
         "qw": "openrouter/qwen/qwen3.6-plus",
         "gm": "gemini/gemma-4-31b-it",
-        "gm26": "gemini/gemma-4-26b-it",
-        "g35fl": "gemini/gemini-3.5-flash-lite-preview",
+        "gfl": "gemini/gemini-flash-lite-latest",
+        "g35fl": "gemini/gemini-3.5-flash-lite",
+        "g38f": "gemini/gemini-3.8-flash",
         "orf": "openrouter/free",
         }
 
@@ -548,6 +549,18 @@ base_urls = {
 
 # Model configurations with their respective API keys and base URLs
 direct_models = {
+    "gemini/gemini-flash-lite-latest": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
+    "gemini/gemini-3.5-flash-lite": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
+    "gemini/gemini-3.8-flash": {
+        "api_key": "GEMINI_API_KEY",
+        "base_url": base_urls["gemini"]
+    },
     "gemini/gemini-3-flash-preview": {
         "api_key": "GEMINI_API_KEY",
         "base_url": base_urls["gemini"]
