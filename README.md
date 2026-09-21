@@ -53,7 +53,7 @@ mait [options] [input]
 - `--delay SECONDS`: Set delay before auto-execution (default: 2.0 seconds)
 - `-c`, `--add-stackexchange`: Add relevant context from Stack Exchange
 - `-M MODEL`, `--model-stackexchange MODEL`: Specify model for Stack Exchange search query generation (default: gemini/gemini-flash-lite-latest)
-- `-g`, `--git`: Git commit helper. Captures `git status` and `git diff` (or accepts piped input), skips tmux screen capture, and prompts for `git add <files>; git commit -m "..."; git push`
+- `-g`, `--git`: Git commit helper. Captures `git status` and `git diff` (or accepts piped input), skips tmux screen capture, and prompts for `git add <files>; git commit -m "..."; git push`. Falls back through several Gemini models to `openrouter/free` (shorthand `orf`) if the selected model fails.
 - `-N`, `--no-screen`: Skip reading/capturing tmux screen scrollback
 
 ### Examples

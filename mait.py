@@ -87,6 +87,7 @@ def get_response_debug(prompt: str, system_prompt: str, model: str) -> str:
 def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
     import litellm
     from litellm.types.utils import ModelResponse
+    from litellm.types.llms.anthropic import AnthropicThinkingParam
     litellm.drop_params = True
     messages = [
         {"role": "system", "content": system_prompt},
@@ -98,13 +99,16 @@ def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
         # For litellm, we'll try to map thinking level if possible, 
         # or just enable it.
         thinking_params = {"type": "enabled"}
+    litellm_thinking: "AnthropicThinkingParam" = cast(
+        AnthropicThinkingParam, thinking_params
+    )
 
     response = cast(ModelResponse, litellm.completion(
         model=model,
         messages=messages,
         temperature=1,
         stop=["```\n"],
-        thinking=thinking_params
+        thinking=litellm_thinking
     ))
 
     try:
@@ -132,29 +136,52 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
     if model == "openrouter/free" or req_model in ("free", "auto"):
         req_model = model
 
-    data = {
-        "model": req_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 1.0,
-        "stop": ["```\n"]
-    }
+    # OpenRouter routers (openrouter/free, ...) pick a random model per
+    # request: an unlucky pick can reject optional sampling params (400) or
+    # be rate limited / unavailable (429, 503, 5xx).  Retry a few times;
+    # on retry send the minimal documented payload.
+    max_attempts = 3 if req_model.startswith("openrouter/") else 1
+    response: requests.Response | None = None
+    for attempt in range(max_attempts):
+        data = {
+            "model": req_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+        }
+        if attempt == 0:
+            data["temperature"] = 1.0
+            data["stop"] = ["```\n"]
+        if "gemini" in model.lower() or "gemini" in base_url.lower():
+            data["reasoning_effort"] = args.thinking_level
 
-    if "gemini" in model.lower() or "gemini" in base_url.lower():
-        data["reasoning_effort"] = args.thinking_level
-
-
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    res_json = response.json()
-    if "choices" in res_json and len(res_json["choices"]) > 0:
-        return res_json["choices"][0]["message"]["content"]
-    elif "error" in res_json:
-        raise RuntimeError(f"API Error ({res_json['error']})")
-    else:
-        raise RuntimeError(f"Unexpected response structure: {res_json}")
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 200:
+            res_json = response.json()
+            if "choices" in res_json and len(res_json["choices"]) > 0:
+                return res_json["choices"][0]["message"]["content"]
+            elif "error" in res_json:
+                raise RuntimeError(f"API Error ({res_json['error']})")
+            else:
+                raise RuntimeError(f"Unexpected response structure: {res_json}")
+        if (attempt + 1 < max_attempts
+                and (response.status_code in (400, 429, 503)
+                     or response.status_code >= 500)):
+            continue
+        # surface the provider's reason instead of a bare status code
+        try:
+            err = response.json().get("error", {})
+            message = err.get("message") or response.text
+            code = err.get("code")
+        except ValueError:
+            message, code = response.text, None
+        code_str = f" (code {code})" if code is not None else ""
+        raise RuntimeError(f"API Error {response.status_code}{code_str}: {message}")
+    # Unreachable when max_attempts >= 1; kept for type-correctness.
+    if response is not None:
+        raise RuntimeError(f"API Error {response.status_code}: {response.text}")
+    raise RuntimeError("API request failed: no response")
 
 
 def get_response(prompt: str, system_prompt: str, model: str) -> str:
@@ -307,7 +334,7 @@ def extract_qa(html_content: str) -> str:
     if len(questions) < 1 or len(answers) < 1:
         return ""
     a = questions[0].find('div', class_='s-prose')
-    markup_output.append(f"### Question \n{a.get_text(strip=True)}\n")
+    markup_output.append(f"### Question \n{a.get_text(strip=True)}\n" if a else "")
 
     for i, ans in enumerate(answers[:3], 1):
 
@@ -339,13 +366,15 @@ def google_search(query: str) -> list[str]:
     results = []
     for result in search_results[:10]:  # We only want the top 10
         try:
-
+            link_el = result.find('a')
             # Extract link. Note: Google links are often redirects,
             # this gets the actual link shown
-            link = result.find('a')['href']
+            link = link_el['href'] if link_el is not None and 'href' in link_el.attrs else None
+            if link is None:
+                continue
 
             results.append(link)
-        except:
+        except Exception:
             continue
 
     return results
