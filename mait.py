@@ -480,6 +480,15 @@ def run_muxmait():
         try:
             diff_out = subprocess.check_output("git diff", shell=True).decode("utf-8")
             if diff_out.strip():
+                diff_size = len(diff_out)
+                if diff_size > args.max_diff:
+                    keep = args.max_diff
+                    # cut at a line boundary so the model sees whole hunks
+                    cutoff = diff_out.rfind("\n", 0, keep) + 1
+                    diff_out = (diff_out[:cutoff] +
+                                f"\n[TRUNCATED: full git diff is {diff_size} bytes; "
+                                f"only first {cutoff} bytes shown. "
+                                f"Commit message must be based on this summary.\n")
                 input_string += "Git diff output:\n" + diff_out + "\n"
         except Exception:
             pass
@@ -731,6 +740,10 @@ parser.add_argument(
 parser.add_argument(
     "-g", "--git", help="git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push",
     action="store_true"
+)
+parser.add_argument(
+    "--max-diff", help="maximum git diff size in bytes included in the git-mode prompt (default: 100000)",
+    default=100000, type=int
 )
 parser.add_argument(
     "-N", "--no-screen", help="do not capture or read tmux screen scrollback",
