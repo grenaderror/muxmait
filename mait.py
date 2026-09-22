@@ -162,6 +162,30 @@ def _post_within(url: str, headers: dict, data: dict, deadline: float,
     return cast("requests.Response", value)
 
 
+def _error_info(body):
+    """Pull (message, code) out of an API error body of any shape.
+
+    OpenRouter answers {"error": {...}}, the Gemini OpenAI-compatible
+    endpoint answers [{"error": {...}}], and some endpoints answer
+    {"error": "string"}.  Treating every body as a dict raised AttributeError
+    on the other shapes and hid the provider's actual reason for failing.
+    """
+    if isinstance(body, list):
+        for item in body:
+            message, code = _error_info(item)
+            if message is not None or code is not None:
+                return message, code
+        return None, None
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict):
+            return err.get("message"), err.get("code")
+        if isinstance(err, str):
+            return err, body.get("code")
+        return body.get("message"), body.get("code")
+    return None, None
+
+
 def get_response_direct(prompt: str, system_prompt: str, model: str,
                          timeout: float | None = None) -> str:
     import requests
@@ -189,7 +213,9 @@ def get_response_direct(prompt: str, system_prompt: str, model: str,
     max_attempts = 3 if req_model.startswith("openrouter/") else 1
     response: requests.Response | None = None
     deadline = monotonic() + timeout if timeout is not None else None
-    for attempt in range(max_attempts):
+    send_thinking = "gemini" in model.lower() or "gemini" in base_url.lower()
+    attempt = 0
+    while attempt < max_attempts:
         remaining = None if deadline is None else deadline - monotonic()
         if remaining is not None and remaining <= 0:
             raise TimeoutError(f"{model}: gave up after {timeout:.0f}s")
@@ -203,33 +229,44 @@ def get_response_direct(prompt: str, system_prompt: str, model: str,
         if attempt == 0:
             data["temperature"] = 1.0
             data["stop"] = ["```\n"]
-        if "gemini" in model.lower() or "gemini" in base_url.lower():
+        if send_thinking:
             data["reasoning_effort"] = args.thinking_level
 
         if deadline is None:
             response = requests.post(url, headers=headers, json=data)
         else:
             response = _post_within(url, headers, data, deadline, model)
-        if response.status_code == 200:
+        try:
             res_json = response.json()
-            if "choices" in res_json and len(res_json["choices"]) > 0:
+        except ValueError:
+            res_json = response.text
+
+        if response.status_code == 200:
+            if isinstance(res_json, dict) and res_json.get("choices"):
                 return res_json["choices"][0]["message"]["content"]
-            elif "error" in res_json:
-                raise RuntimeError(f"API Error ({res_json['error']})")
-            else:
-                raise RuntimeError(f"Unexpected response structure: {res_json}")
+            message, code = _error_info(res_json)
+            if message is not None or code is not None:
+                raise RuntimeError(f"API Error ({message or code})")
+            raise RuntimeError(f"Unexpected response structure: {res_json}")
+
+        # surface the provider's reason instead of a bare status code
+        message, code = _error_info(res_json)
+        if message is None:
+            message = response.text
+        code_str = f" (code {code})" if code is not None else ""
+
+        # some models reject reasoning_effort for any thinking level ("MINIMAL
+        # is not supported"): drop it and retry the same model once before
+        # giving up on it
+        if (response.status_code == 400 and send_thinking
+                and "thinking level" in str(message).lower()):
+            send_thinking = False
+            continue
         if (attempt + 1 < max_attempts
                 and (response.status_code in (400, 429, 503)
                      or response.status_code >= 500)):
+            attempt += 1
             continue
-        # surface the provider's reason instead of a bare status code
-        try:
-            err = response.json().get("error", {})
-            message = err.get("message") or response.text
-            code = err.get("code")
-        except ValueError:
-            message, code = response.text, None
-        code_str = f" (code {code})" if code is not None else ""
         raise RuntimeError(f"API Error {response.status_code}{code_str}: {message}")
     # Unreachable when max_attempts >= 1; kept for type-correctness.
     if response is not None:
