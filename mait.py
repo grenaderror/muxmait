@@ -6,7 +6,7 @@ try:
     import subprocess
     import re
     import argparse
-    from time import sleep
+    from time import sleep, monotonic
 except KeyboardInterrupt:
     print(" KeyboardInterrupt")
     quit()
@@ -16,8 +16,12 @@ VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
 DEFAULT_MODEL = "gemini/gemini-flash-lite-latest"
-# model used first by git mode (-g); the gemini list below follows as fallback
-GIT_DEFAULT_MODEL = "openrouter/nvidia/nemotron-3.5-lightning:free"
+# git mode (-g): GIT_DEFAULT_MODEL is tried first, the rest of the fallback
+# list lives in process_prompt.  The whole fallback loop shares GIT_TIMEOUT
+# seconds, so a slow model is abandoned instead of stalling the prompt.
+GIT_DEFAULT_MODEL = "openrouter/qwen/qwen3.8-27b:free"
+NEMOTRON_MODEL = "openrouter/nvidia/nemotron-3.5-lightning:free"
+GIT_TIMEOUT = 10
 
 args: argparse.Namespace
 
@@ -86,7 +90,8 @@ def get_response_debug(prompt: str, system_prompt: str, model: str) -> str:
     return response
 
 
-def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
+def get_response_litellm(prompt: str, system_prompt: str, model: str,
+                         timeout: float | None = None) -> str:
     import litellm
     from litellm.types.utils import ModelResponse
     from litellm.types.llms.anthropic import AnthropicThinkingParam
@@ -110,7 +115,8 @@ def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
         messages=messages,
         temperature=1,
         stop=["```\n"],
-        thinking=litellm_thinking
+        thinking=litellm_thinking,
+        timeout=timeout
     ))
 
     try:
@@ -119,7 +125,47 @@ def get_response_litellm(prompt: str, system_prompt: str, model: str) -> str:
         raise RuntimeError(f"LiteLLM model response error: {response}")
 
 
-def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
+def _post_within(url: str, headers: dict, data: dict, deadline: float,
+                 model: str):
+    """POST and return a Response, giving up at `deadline`.
+
+    requests' timeout only bounds the gap between individual reads, so a
+    server that keeps dribbling bytes can run far past it.  Doing the call on
+    a worker thread lets the caller stop waiting at the deadline no matter
+    what the socket is doing.
+    """
+    import queue
+    import threading
+    import requests
+
+    results: "queue.Queue[tuple[str, object]]" = queue.Queue(maxsize=1)
+
+    def run():
+        try:
+            remaining = deadline - monotonic()
+            results.put(("ok", requests.post(url, headers=headers, json=data,
+                                             timeout=max(remaining, 0.1))))
+        except BaseException as e:  # noqa: BLE001 - reported to the caller
+            results.put(("err", e))
+
+    # daemon: an abandoned model is left to finish (or not) in the background
+    threading.Thread(target=run, daemon=True).start()
+
+    remaining = deadline - monotonic()
+    if remaining <= 0:
+        raise TimeoutError(f"{model}: no response within the time budget")
+    try:
+        kind, value = results.get(timeout=remaining)
+    except queue.Empty:
+        raise TimeoutError(
+            f"{model}: no complete response within the time budget") from None
+    if kind == "err":
+        raise cast(Exception, value)
+    return cast("requests.Response", value)
+
+
+def get_response_direct(prompt: str, system_prompt: str, model: str,
+                         timeout: float | None = None) -> str:
     import requests
 
     api_key = os.getenv(direct_models[model]["api_key"])
@@ -144,7 +190,11 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
     # on retry send the minimal documented payload.
     max_attempts = 3 if req_model.startswith("openrouter/") else 1
     response: requests.Response | None = None
+    deadline = monotonic() + timeout if timeout is not None else None
     for attempt in range(max_attempts):
+        remaining = None if deadline is None else deadline - monotonic()
+        if remaining is not None and remaining <= 0:
+            raise TimeoutError(f"{model}: gave up after {timeout:.0f}s")
         data = {
             "model": req_model,
             "messages": [
@@ -158,7 +208,10 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
         if "gemini" in model.lower() or "gemini" in base_url.lower():
             data["reasoning_effort"] = args.thinking_level
 
-        response = requests.post(url, headers=headers, json=data)
+        if deadline is None:
+            response = requests.post(url, headers=headers, json=data)
+        else:
+            response = _post_within(url, headers, data, deadline, model)
         if response.status_code == 200:
             res_json = response.json()
             if "choices" in res_json and len(res_json["choices"]) > 0:
@@ -186,7 +239,8 @@ def get_response_direct(prompt: str, system_prompt: str, model: str) -> str:
     raise RuntimeError("API request failed: no response")
 
 
-def get_response(prompt: str, system_prompt: str, model: str) -> str:
+def get_response(prompt: str, system_prompt: str, model: str,
+                 timeout: float | None = None) -> str:
     if args.verbose:
         print("getting response")
         print(f"using model {model}")
@@ -195,9 +249,9 @@ def get_response(prompt: str, system_prompt: str, model: str) -> str:
     if args.debug:
         response = get_response_debug(prompt, system_prompt, model)
     elif model in direct_models:
-        response = get_response_direct(prompt, system_prompt, model)
+        response = get_response_direct(prompt, system_prompt, model, timeout)
     else:
-        response = get_response_litellm(prompt, system_prompt, model)
+        response = get_response_litellm(prompt, system_prompt, model, timeout)
     if args.verbose:
         print("raw response")
         print("------------------------------------------")
@@ -232,6 +286,7 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     if args.git:
         git_fallback_models = [
             GIT_DEFAULT_MODEL,
+            NEMOTRON_MODEL,
             "gemini/gemini-flash-lite-latest",
             "gemini/gemini-3.5-flash-lite",
             "gemini/gemini-3.8-flash",
@@ -247,11 +302,21 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
             models_to_try.remove(model)
             models_to_try.insert(0, model)
 
+        # one shared deadline for the whole fallback chain: a model that
+        # hasn't answered within its slice is abandoned for the next one
+        deadline = monotonic() + GIT_TIMEOUT
+
         for m in models_to_try:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                print(f"git mode: {GIT_TIMEOUT}s budget exhausted, "
+                      f"not trying {m}")
+                break
             try:
                 if args.verbose:
                     print(f"Trying git model: {m}")
-                response = get_response(prompt, system_prompt, m)
+                response = get_response(prompt, system_prompt, m,
+                                        timeout=remaining)
                 break
             except Exception as e:
                 print(f"Model {m} failed/rejected: {e}")
@@ -591,7 +656,8 @@ model_dict = {
         "g35fl": "gemini/gemini-3.5-flash-lite",
         "g38f": "gemini/gemini-3.8-flash",
         "orf": "openrouter/free",
-        "nlf": GIT_DEFAULT_MODEL,
+        "q38f": GIT_DEFAULT_MODEL,
+        "nlf": NEMOTRON_MODEL,
         }
 
 # Base URLs for different providers
@@ -680,6 +746,10 @@ direct_models = {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
+    NEMOTRON_MODEL: {
+        "api_key": "OPENROUTER_API_KEY",
+        "base_url": base_urls["openrouter"]
+    },
 }
 
 
@@ -759,7 +829,7 @@ parser.add_argument(
     default="minimal"
 )
 parser.add_argument(
-    "-g", "--git", help=f"git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Defaults to {GIT_DEFAULT_MODEL} (shorthand 'nlf') and falls back through several Gemini models to openrouter/free ('orf')",
+    "-g", "--git", help=f"git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Tries {GIT_DEFAULT_MODEL} (shorthand 'q38f') first, then {NEMOTRON_MODEL} ('nlf') and several Gemini models, ending at openrouter/free ('orf'). The whole chain is capped at {GIT_TIMEOUT}s",
     action="store_true"
 )
 parser.add_argument(
