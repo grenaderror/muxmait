@@ -20,7 +20,6 @@ DEFAULT_MODEL = "gemini/gemini-flash-lite-latest"
 # list lives in process_prompt.  The whole fallback loop shares GIT_TIMEOUT
 # seconds, so a slow model is abandoned instead of stalling the prompt.
 GIT_DEFAULT_MODEL = "openrouter/qwen/qwen3.8-27b:free"
-NEMOTRON_MODEL = "openrouter/nvidia/nemotron-3.5-lightning:free"
 GIT_TIMEOUT = 10
 
 args: argparse.Namespace
@@ -286,7 +285,7 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     if args.git:
         git_fallback_models = [
             GIT_DEFAULT_MODEL,
-            NEMOTRON_MODEL,
+            "openrouter/nvidia/nemotron-3.5-lightning:free",
             "gemini/gemini-flash-lite-latest",
             "gemini/gemini-3.5-flash-lite",
             "gemini/gemini-3.8-flash",
@@ -656,8 +655,8 @@ model_dict = {
         "g35fl": "gemini/gemini-3.5-flash-lite",
         "g38f": "gemini/gemini-3.8-flash",
         "orf": "openrouter/free",
-        "q38f": GIT_DEFAULT_MODEL,
-        "nlf": NEMOTRON_MODEL,
+        "q38f": "openrouter/qwen/qwen3.8-27b:free",
+        "nlf": "openrouter/nvidia/nemotron-3.5-lightning:free",
         }
 
 # Base URLs for different providers
@@ -746,7 +745,7 @@ direct_models = {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
-    NEMOTRON_MODEL: {
+    "openrouter/nvidia/nemotron-3.5-lightning:free": {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
@@ -829,7 +828,7 @@ parser.add_argument(
     default="minimal"
 )
 parser.add_argument(
-    "-g", "--git", help=f"git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Tries {GIT_DEFAULT_MODEL} (shorthand 'q38f') first, then {NEMOTRON_MODEL} ('nlf') and several Gemini models, ending at openrouter/free ('orf'). The whole chain is capped at {GIT_TIMEOUT}s",
+    "-g", "--git", help=f"git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Tries {GIT_DEFAULT_MODEL} (shorthand 'q38f') first, then openrouter/nvidia/nemotron-3.5-lightning:free ('nlf') and several Gemini models, ending at openrouter/free ('orf'). The whole chain is capped at {GIT_TIMEOUT}s",
     action="store_true"
 )
 parser.add_argument(
