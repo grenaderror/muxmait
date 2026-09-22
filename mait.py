@@ -16,10 +16,9 @@ VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
 DEFAULT_MODEL = "gemini/gemini-flash-lite-latest"
-# git mode (-g): GIT_DEFAULT_MODEL is tried first, the rest of the fallback
-# list lives in process_prompt.  The whole fallback loop shares GIT_TIMEOUT
-# seconds, so a slow model is abandoned instead of stalling the prompt.
-GIT_DEFAULT_MODEL = "openrouter/qwen/qwen3.8-27b:free"
+# git mode (-g): the whole fallback chain in process_prompt shares
+# GIT_TIMEOUT seconds, so a slow model is abandoned instead of stalling the
+# prompt.  That is why the fast models lead and the slow ones trail.
 GIT_TIMEOUT = 10
 
 args: argparse.Namespace
@@ -284,13 +283,11 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     response = None
     if args.git:
         git_fallback_models = [
-            GIT_DEFAULT_MODEL,
+            "gemini/gemini-3-flash-preview",
+            "gemini/gemini-3.1-flash-lite-preview",
             "openrouter/nvidia/nemotron-3.5-lightning:free",
             "gemini/gemini-flash-lite-latest",
             "gemini/gemini-3.5-flash-lite",
-            "gemini/gemini-3.8-flash",
-            "gemini/gemini-3-flash-preview",
-            "gemini/gemini-3.1-flash-lite-preview",
             "openrouter/free",
         ]
         models_to_try = list(git_fallback_models)
@@ -741,7 +738,7 @@ direct_models = {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
-    GIT_DEFAULT_MODEL: {
+    "openrouter/qwen/qwen3.8-27b:free": {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
@@ -774,7 +771,7 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-m", "--model", help=f"Set model. Default is {DEFAULT_MODEL} ({GIT_DEFAULT_MODEL} in git mode). You can also pass a number to select from model list",
+    "-m", "--model", help="Set model. Default is gemini/gemini-flash-lite-latest (the chain above applies in git mode). You can also pass a number to select from model list",
     default=None
 )
 parser.add_argument(
@@ -828,7 +825,7 @@ parser.add_argument(
     default="minimal"
 )
 parser.add_argument(
-    "-g", "--git", help=f"git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Tries {GIT_DEFAULT_MODEL} (shorthand 'q38f') first, then openrouter/nvidia/nemotron-3.5-lightning:free ('nlf') and several Gemini models, ending at openrouter/free ('orf'). The whole chain is capped at {GIT_TIMEOUT}s",
+    "-g", "--git", help="git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Falls back through gemini/gemini-3-flash-preview ('gf'), gemini/gemini-3.1-flash-lite-preview ('gt'), nemotron-3.5-lightning:free ('nlf'), the gemini flash-lites, then openrouter/free ('orf'), for at most 10s in total",
     action="store_true"
 )
 parser.add_argument(
