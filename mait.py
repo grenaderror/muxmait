@@ -242,6 +242,10 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
         models_to_try = list(git_fallback_models)
         if model not in models_to_try:
             models_to_try.insert(0, model)
+        elif getattr(args, "model_explicit", False):
+            # -m was given on the command line: honour it first, then fall back
+            models_to_try.remove(model)
+            models_to_try.insert(0, model)
 
         for m in models_to_try:
             try:
@@ -283,6 +287,12 @@ def put_command(command: str):
     if args.log_commands is not None:
         with open(args.log_commands, 'a') as f:
             f.write(command+"\n")
+
+    # --no-paste: print/log only, never send keys to tmux
+    if args.no_paste:
+        if args.verbose:
+            print("no-paste: not sending command to tmux")
+        return
 
     # presses enter on target tmux pane
     enter = "ENTER" if args.auto else ""
@@ -439,6 +449,9 @@ def run_muxmait():
     args, arg_input = parser.parse_known_args()
 
     # let user select model from model list
+    args.model_explicit = args.model is not None
+    if args.model is None:
+        args.model = DEFAULT_MODEL
     if args.model in model_dict:
         args.model = model_dict[args.model]
     elif len(args.model) < 4:
@@ -692,8 +705,8 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-m", "--model", help=f"Set model. Default is {DEFAULT_MODEL}. You can also pass a number to select from model list",
-    default=DEFAULT_MODEL
+    "-m", "--model", help=f"Set model. Default is {DEFAULT_MODEL} ({GIT_DEFAULT_MODEL} in git mode). You can also pass a number to select from model list",
+    default=None
 )
 parser.add_argument(
     "-q", "--quiet", help="only return command no explanation",
@@ -755,6 +768,10 @@ parser.add_argument(
 )
 parser.add_argument(
     "-N", "--no-screen", help="do not capture or read tmux screen scrollback",
+    action="store_true"
+)
+parser.add_argument(
+    "--no-paste", help="do not send the suggested command to tmux (print/log only)",
     action="store_true"
 )
 
