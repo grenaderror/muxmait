@@ -16,9 +16,9 @@ VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
 DEFAULT_MODEL = "gemini/gemini-flash-lite-latest"
-# git mode (-g): the whole fallback chain in process_prompt shares
-# GIT_TIMEOUT seconds, so a slow model is abandoned instead of stalling the
-# prompt.  That is why the fast models lead and the slow ones trail.
+# git mode (-g): every attempt in the fallback chain gets GIT_TIMEOUT
+# seconds of its own, so a slow model is abandoned for the next one instead
+# of stalling the prompt.
 GIT_TIMEOUT = 10
 
 args: argparse.Namespace
@@ -298,21 +298,12 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
             models_to_try.remove(model)
             models_to_try.insert(0, model)
 
-        # one shared deadline for the whole fallback chain: a model that
-        # hasn't answered within its slice is abandoned for the next one
-        deadline = monotonic() + GIT_TIMEOUT
-
         for m in models_to_try:
-            remaining = deadline - monotonic()
-            if remaining <= 0:
-                print(f"git mode: {GIT_TIMEOUT}s budget exhausted, "
-                      f"not trying {m}")
-                break
             try:
                 if args.verbose:
                     print(f"Trying git model: {m}")
                 response = get_response(prompt, system_prompt, m,
-                                        timeout=remaining)
+                                        timeout=GIT_TIMEOUT)
                 break
             except Exception as e:
                 print(f"Model {m} failed/rejected: {e}")
@@ -825,7 +816,7 @@ parser.add_argument(
     default="minimal"
 )
 parser.add_argument(
-    "-g", "--git", help="git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Falls back through gemini/gemini-3-flash-preview ('gf'), gemini/gemini-3.1-flash-lite-preview ('gt'), nemotron-3.5-lightning:free ('nlf'), the gemini flash-lites, then openrouter/free ('orf'), for at most 10s in total",
+    "-g", "--git", help="git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Falls back through gemini/gemini-3-flash-preview ('gf'), gemini/gemini-3.1-flash-lite-preview ('gt'), nemotron-3.5-lightning:free ('nlf'), the gemini flash-lites, then openrouter/free ('orf'), giving each model 10s before moving on",
     action="store_true"
 )
 parser.add_argument(
