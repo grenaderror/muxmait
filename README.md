@@ -53,7 +53,7 @@ mait [options] [input]
 - `--delay SECONDS`: Set delay before auto-execution (default: 2.0 seconds)
 - `-c`, `--add-stackexchange`: Add relevant context from Stack Exchange
 - `-M MODEL`, `--model-stackexchange MODEL`: Specify model for Stack Exchange search query generation (default: gemini/gemini-flash-lite-latest)
-- `-g`, `--git`: Git commit helper. Captures `git status` and `git diff` (or accepts piped input), skips tmux screen capture, and prompts for `git add <files>; git commit -m "..."; git push`. Falls back through several Gemini models to `openrouter/free` (shorthand `orf`) if the selected model fails.
+- `-g`, `--git`: Git commit helper. Captures `git status` and `git diff` (or accepts piped input), skips tmux screen capture, and prompts for `git add <files>; git commit -m "..."; git push`. Defaults to `openrouter/nvidia/nemotron-3.5-lightning:free` (shorthand `nlf`) and falls back through several Gemini models to `openrouter/free` (shorthand `orf`) if a model fails.
 - `--max-diff BYTES`: Maximum git diff size in bytes included in the `-g` prompt (default: 100000). Oversized diffs are truncated at a line boundary with a note so huge binary-heavy diffs (e.g. notebooks) don't blow the context window.
 - `-N`, `--no-screen`: Skip reading/capturing tmux screen scrollback
 

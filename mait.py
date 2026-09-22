@@ -16,6 +16,8 @@ VERBOSE_LEN = 20
 YOUR_SITE_URL = ""
 YOUR_APP_NAME = "muxmait"
 DEFAULT_MODEL = "gemini/gemini-flash-lite-latest"
+# model used first by git mode (-g); the gemini list below follows as fallback
+GIT_DEFAULT_MODEL = "openrouter/nvidia/nemotron-3.5-lightning:free"
 
 args: argparse.Namespace
 
@@ -229,6 +231,7 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     response = None
     if args.git:
         git_fallback_models = [
+            GIT_DEFAULT_MODEL,
             "gemini/gemini-flash-lite-latest",
             "gemini/gemini-3.5-flash-lite",
             "gemini/gemini-3.8-flash",
@@ -575,6 +578,7 @@ model_dict = {
         "g35fl": "gemini/gemini-3.5-flash-lite",
         "g38f": "gemini/gemini-3.8-flash",
         "orf": "openrouter/free",
+        "nlf": GIT_DEFAULT_MODEL,
         }
 
 # Base URLs for different providers
@@ -659,6 +663,10 @@ direct_models = {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
     },
+    GIT_DEFAULT_MODEL: {
+        "api_key": "OPENROUTER_API_KEY",
+        "base_url": base_urls["openrouter"]
+    },
 }
 
 
@@ -738,7 +746,7 @@ parser.add_argument(
     default="minimal"
 )
 parser.add_argument(
-    "-g", "--git", help="git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push",
+    "-g", "--git", help=f"git commit helper: uses git status and git diff, skips screen capture, and prompts for git add; git commit -m '...'; git push. Defaults to {GIT_DEFAULT_MODEL} (shorthand 'nlf') and falls back through several Gemini models to openrouter/free ('orf')",
     action="store_true"
 )
 parser.add_argument(
