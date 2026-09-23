@@ -784,10 +784,14 @@ default_tmux_target = (
             .strip()
         )
 
+_max_k = max(len(k) for k in model_dict)
+model_list_str = "\n".join(f"  {k + ':':<{_max_k + 1}}  {v}" for k, v in model_dict.items())
+
 parser = argparse.ArgumentParser(
     prog="muxmait",
     description="ai terminal assistant",
-    epilog="eschaton",
+    epilog=f"models:\n{model_list_str}\n\neschaton",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -799,7 +803,7 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-m", "--model", help="Set model. Default is gemini/gemini-flash-lite-latest (the chain above applies in git mode). You can also pass a number to select from model list",
+    "-m", "--model", help="Set model. Default is gemini/gemini-flash-lite-latest (the chain above applies in git mode). You can also pass a shorthand to select from model list",
     default=None
 )
 parser.add_argument(
