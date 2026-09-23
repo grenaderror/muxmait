@@ -190,21 +190,48 @@ def get_response_direct(prompt: str, system_prompt: str, model: str,
                          timeout: float | None = None) -> str:
     import requests
 
-    api_key = os.getenv(direct_models[model]["api_key"])
-    base_url = direct_models[model]["base_url"]
+    model_config = direct_models.get(model)
+    if not model_config and (model == "llama" or model.startswith("llama/")):
+        model_config = {
+            "api_key": "LLAMA_API_KEY",
+            "base_url": base_urls["llama"]
+        }
+    api_key_name = model_config["api_key"] if model_config else None
+    api_key = os.getenv(api_key_name) if api_key_name else None
+    base_url = model_config["base_url"] if model_config else base_urls["llama"]
 
     url = base_url.rstrip("/")
     if not url.endswith("/chat/completions"):
         url += "/chat/completions"
 
     headers = {
-        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     req_model = model[model.find("/")+1:]
     if model == "openrouter/free" or req_model in ("free", "auto"):
         req_model = model
+    elif model == "llama" or model.startswith("llama/"):
+        if req_model in ("local", "default", "", "llama"):
+            models_url = base_url.rstrip("/")
+            if models_url.endswith("/chat/completions"):
+                models_url = models_url[:-len("/chat/completions")]
+            if not models_url.endswith("/models"):
+                models_url += "/models"
+            try:
+                models_resp = requests.get(models_url, timeout=2).json()
+                data = models_resp.get("data", [])
+                for m in data:
+                    if m.get("status", {}).get("value") == "loaded":
+                        req_model = m["id"]
+                        break
+                else:
+                    if data:
+                        req_model = data[0]["id"]
+            except Exception:
+                pass
 
     # OpenRouter routers (openrouter/free, ...) pick a random model per
     # request: an unlucky pick can reject optional sampling params (400) or
@@ -243,7 +270,11 @@ def get_response_direct(prompt: str, system_prompt: str, model: str,
 
         if response.status_code == 200:
             if isinstance(res_json, dict) and res_json.get("choices"):
-                return res_json["choices"][0]["message"]["content"]
+                msg = res_json["choices"][0].get("message", {})
+                content = msg.get("content")
+                if not content and msg.get("reasoning_content"):
+                    content = msg.get("reasoning_content")
+                return content or ""
             message, code = _error_info(res_json)
             if message is not None or code is not None:
                 raise RuntimeError(f"API Error ({message or code})")
@@ -283,7 +314,7 @@ def get_response(prompt: str, system_prompt: str, model: str,
     response: str
     if args.debug:
         response = get_response_debug(prompt, system_prompt, model)
-    elif model in direct_models:
+    elif model in direct_models or model == "llama" or model.startswith("llama/"):
         response = get_response_direct(prompt, system_prompt, model, timeout)
     else:
         response = get_response_litellm(prompt, system_prompt, model, timeout)
@@ -543,6 +574,8 @@ def run_muxmait():
         args.model = DEFAULT_MODEL
     if args.model in model_dict:
         args.model = model_dict[args.model]
+    elif args.model == "llama":
+        args.model = "llama/local"
     elif len(args.model) < 4:
         print("Model quick list")
         for k, v in model_dict.items():
@@ -550,6 +583,8 @@ def run_muxmait():
         quit()
     if args.model_stackexchange in model_dict:
         args.model_stackexchange = model_dict[args.model_stackexchange]
+    elif args.model_stackexchange == "llama":
+        args.model_stackexchange = "llama/local"
     elif len(args.model_stackexchange) < 4:
         print("Model quick list")
         for k, v in model_dict.items():
@@ -682,6 +717,7 @@ model_dict = {
         "orf": "openrouter/free",
         "q38f": "openrouter/qwen/qwen3.8-27b:free",
         "nlf": "openrouter/nvidia/nemotron-3.5-lightning:free",
+        "ll": "llama/local",
         }
 
 # Base URLs for different providers
@@ -689,7 +725,8 @@ base_urls = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "xai": "https://api.x.ai/v1",
     "openai": "https://api.openai.com/v1/chat/completions",
-    "openrouter": "https://openrouter.ai/api/v1"
+    "openrouter": "https://openrouter.ai/api/v1",
+    "llama": os.getenv("LLAMA_BASE_URL", "http://127.0.0.1:8080/v1")
 }
 
 # Model configurations with their respective API keys and base URLs
@@ -773,6 +810,14 @@ direct_models = {
     "openrouter/nvidia/nemotron-3.5-lightning:free": {
         "api_key": "OPENROUTER_API_KEY",
         "base_url": base_urls["openrouter"]
+    },
+    "llama/local": {
+        "api_key": "LLAMA_API_KEY",
+        "base_url": base_urls["llama"]
+    },
+    "llama": {
+        "api_key": "LLAMA_API_KEY",
+        "base_url": base_urls["llama"]
     },
 }
 

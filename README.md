@@ -26,6 +26,7 @@ A command-line tool that works with your tmux scrollback. It reads your tmux pan
    export GEMINI_API_KEY="your-key-here"
    export TOGETHER_API_KEY="your-key-here"
    export XAI_API_KEY="your-key-here"
+   export LLAMA_API_KEY="your-key-here" # optional for local llama (defaults to http://127.0.0.1:8080/v1 or LLAMA_BASE_URL)
    ```
    - And any others supported by litellm
 
@@ -40,7 +41,7 @@ mait [options] [input]
 
 - `-A`, `--auto`: Automatically execute the suggested command (use with caution)
 - `-r`, `--recursive`: Add `;mait` to the end of suggested commands for continuous operation
-- `-m MODEL`, `--model MODEL`: Choose AI model (Can select by shorthand for some models eg.'cs' for claude-3-5-sonnet-latest or 'gf' for gemini/gemini-1.5-flash-latest  )
+- `-m MODEL`, `--model MODEL`: Choose AI model (Can select by shorthand for models listed in `--help`, e.g. 'cs', 'gf', or 'll' for local llama at http://127.0.0.1:8080)
 - `-q`, `--quiet`: Only output the command without explanation
 - `-v`, `--verbose`: Enable verbose mode with detailed output
 - `--debug`: Run in debug mode (skips API request)
