@@ -351,11 +351,11 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     response = None
     if args.git:
         git_fallback_models = [
+            "gemini/gemini-flash-lite-latest",
+            "gemini/gemini-3.5-flash-lite",
             "gemini/gemini-3-flash-preview",
             "gemini/gemini-3.1-flash-lite-preview",
             "openrouter/nvidia/nemotron-3.5-lightning:free",
-            "gemini/gemini-flash-lite-latest",
-            "gemini/gemini-3.5-flash-lite",
             "openrouter/free",
         ]
         models_to_try = list(git_fallback_models)
