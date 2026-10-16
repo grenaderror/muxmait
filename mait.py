@@ -351,6 +351,7 @@ def process_prompt(prompt: str, system_prompt: str, model: str):
     response = None
     if args.git:
         git_fallback_models = [
+            "llama/local",
             "gemini/gemini-flash-lite-latest",
             "gemini/gemini-3.5-flash-lite",
             "gemini/gemini-3-flash-preview",
@@ -726,7 +727,7 @@ base_urls = {
     "xai": "https://api.x.ai/v1",
     "openai": "https://api.openai.com/v1/chat/completions",
     "openrouter": "https://openrouter.ai/api/v1",
-    "llama": os.getenv("LLAMA_BASE_URL", "http://127.0.0.1:8080/v1")
+    "llama": os.getenv("LLAMA_BASE_URL", "http://127.0.0.1:8081/v1")
 }
 
 # Model configurations with their respective API keys and base URLs
